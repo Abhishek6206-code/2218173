@@ -180,10 +180,3 @@ module.exports = {
   createLogger,
   logger: defaultLogger
 };
-
-
-module.exports = {
-  AffordmedLogger,
-  createLogger,
-  logger: defaultLogger
-};
