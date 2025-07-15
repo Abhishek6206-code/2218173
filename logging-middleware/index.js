@@ -1,3 +1,4 @@
+// Custom logger class for AFFORDMED - built this to replace console.log everywhere
 class AffordmedLogger {
   constructor(options = {}) {
     this.serviceName = options.serviceName || 'AFFORDMED-SERVICE';
@@ -5,15 +6,20 @@ class AffordmedLogger {
     this.logLevel = options.logLevel || 'info';
     this.enableTimestamp = options.enableTimestamp !== false;
     
-    // Log levels hierarchy
+    // TODO: maybe add colors for different log levels later
     this.levels = {
       error: 0,
-      warn: 1,
+      warn: 1, 
       info: 2,
       debug: 3
     };
     
     this.currentLevel = this.levels[this.logLevel] || this.levels.info;
+    
+    // Initialize logs array if it doesn't exist
+    if (typeof window === 'undefined' && !global.affordmedLogs) {
+      global.affordmedLogs = [];
+    }
   }
 
   formatMessage(level, message, metadata = {}) {
@@ -62,21 +68,36 @@ class AffordmedLogger {
   }
 
   storeLog(logEntry) {
-    // In a real implementation, this would send to a logging service
-    // For this demo, we'll store in memory
-    if (typeof window !== 'undefined') {
-      // Client-side storage
-      const logs = JSON.parse(localStorage.getItem('affordmed_logs') || '[]');
-      logs.push(logEntry);
-      // Keep only last 1000 logs
-      if (logs.length > 1000) logs.shift();
-      localStorage.setItem('affordmed_logs', JSON.stringify(logs));
-    } else {
-      // Server-side storage (in memory for demo)
-      if (!global.affordmedLogs) global.affordmedLogs = [];
-      global.affordmedLogs.push(logEntry);
-      // Keep only last 1000 logs
-      if (global.affordmedLogs.length > 1000) global.affordmedLogs.shift();
+    // TODO: In production we should send this to ELK stack or something
+    try {
+      if (typeof window !== 'undefined') {
+        // Browser environment - use localStorage
+        let logs = [];
+        try {
+          logs = JSON.parse(localStorage.getItem('affordmed_logs') || '[]');
+        } catch (e) {
+          // sometimes localStorage gets corrupted, just reset it
+          logs = [];
+        }
+        logs.push(logEntry);
+        // keep only recent logs so we don't fill up storage
+        if (logs.length > 1000) {
+          logs.shift();
+        }
+        localStorage.setItem('affordmed_logs', JSON.stringify(logs));
+      } else {
+        // Node.js environment
+        if (!global.affordmedLogs) global.affordmedLogs = [];
+        global.affordmedLogs.push(logEntry);
+        if (global.affordmedLogs.length > 1000) {
+          global.affordmedLogs.shift(); // remove oldest
+        }
+      }
+    } catch (err) {
+      // fallback to console if storage fails
+      if (this.environment === 'development') {
+        console.warn('Failed to store log:', err);
+      }
     }
   }
 
@@ -96,31 +117,36 @@ class AffordmedLogger {
     return this.log('debug', message, metadata);
   }
 
-  // Express middleware factory
+  // Express middleware - logs all requests automatically
   expressMiddleware() {
+    const self = this; // capture this context
     return (req, res, next) => {
       const startTime = Date.now();
       
-      // Log incoming request
-      this.info('Incoming request', {
+      // log the incoming request
+      self.info('Incoming request', {
         method: req.method,
         url: req.url,
         userAgent: req.get('User-Agent'),
-        ip: req.ip || req.connection.remoteAddress
+        ip: req.ip || req.connection.remoteAddress,
+        timestamp: new Date().toISOString()
       });
 
-      // Override res.end to log response
+      // monkey patch res.end to capture response timing
       const originalEnd = res.end;
       res.end = function(chunk, encoding) {
         const duration = Date.now() - startTime;
         
-        // Create new logger instance to access the method
-        const logger = new AffordmedLogger({ serviceName: 'BACKEND-API' });
-        logger.info('Request completed', {
+        // NOTE: creating new logger instance here feels weird but it works
+        const responseLogger = new AffordmedLogger({ 
+          serviceName: self.serviceName + '-RESPONSE' 
+        });
+        responseLogger.info('Request completed', {
           method: req.method,
           url: req.url,
           statusCode: res.statusCode,
-          duration: `${duration}ms`
+          duration: duration + 'ms',
+          success: res.statusCode < 400
         });
 
         originalEnd.call(res, chunk, encoding);

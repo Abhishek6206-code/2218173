@@ -1,106 +1,120 @@
 import axios from 'axios';
 import logger from './logger';
 
-// Create axios instance with base configuration
+// setup axios instance for API calls
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-  timeout: 10000,
+  timeout: 10000, // 10 second timeout
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-// Request interceptor for logging
+console.log('API base URL:', api.defaults.baseURL); // debug info
+
+// log all outgoing requests
 api.interceptors.request.use(
   (config) => {
-    logger.info('API Request initiated', {
+    const hasData = config.data ? true : false;
+    logger.info('Making API request', {
       method: config.method?.toUpperCase(),
       url: config.url,
-      data: config.data ? 'Request contains data' : 'No data'
+      hasData: hasData
     });
     return config;
   },
   (error) => {
-    logger.error('API Request error', { error: error.message });
+    logger.error('Request setup failed', { error: error.message });
     return Promise.reject(error);
   }
 );
 
-// Response interceptor for logging
+// log all responses
 api.interceptors.response.use(
   (response) => {
-    logger.info('API Response received', {
+    logger.info('Got API response', {
       status: response.status,
       url: response.config.url,
-      method: response.config.method?.toUpperCase()
+      method: response.config.method?.toUpperCase(),
+      success: true
     });
     return response;
   },
   (error) => {
-    const errorDetails = {
-      status: error.response?.status,
-      url: error.config?.url,
-      method: error.config?.method?.toUpperCase(),
+    // extract error info
+    const errorInfo = {
+      status: error.response?.status || 'No status',
+      url: error.config?.url || 'Unknown URL',
+      method: error.config?.method?.toUpperCase() || 'Unknown method',
       message: error.response?.data?.message || error.message
     };
     
-    logger.error('API Response error', errorDetails);
+    logger.error('API call failed', errorInfo);
+    console.error('API Error:', errorInfo); // also log to console for debugging
     return Promise.reject(error);
   }
 );
 
-// API functions
+// Main API functions
 export const urlAPI = {
-  // Create short URL
-  createShortUrl: async (urlData) => {
+  // create a new short URL
+  createShortUrl: async (data) => {
     try {
-      logger.info('Creating short URL', { originalUrl: urlData.url });
-      const response = await api.post('/shorturls', urlData);
-      logger.info('Short URL created successfully', { 
-        shortLink: response.data.shortLink,
-        expiry: response.data.expiry
+      logger.info('Creating short URL', { url: data.url });
+      const resp = await api.post('/shorturls', data);
+      
+      logger.info('Short URL created', { 
+        shortLink: resp.data.shortLink,
+        expiry: resp.data.expiry
       });
-      return response.data;
-    } catch (error) {
-      logger.error('Failed to create short URL', { 
-        error: error.response?.data?.message || error.message,
-        originalUrl: urlData.url
+      
+      return resp.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message;
+      logger.error('Short URL creation failed', { 
+        error: errorMsg,
+        originalUrl: data.url
       });
-      throw error;
+      throw err; // re-throw for caller to handle
     }
   },
 
-  // Get URL statistics
-  getUrlStats: async (shortCode) => {
+  // get statistics for a short URL
+  getUrlStats: async (code) => {
     try {
-      logger.info('Fetching URL statistics', { shortCode });
-      const response = await api.get(`/shorturls/${shortCode}`);
-      logger.info('URL statistics retrieved', { 
-        shortCode,
-        clicks: response.data.clicks
+      logger.info('Getting URL stats', { shortCode: code });
+      const response = await api.get(`/shorturls/${code}`);
+      
+      logger.info('Stats retrieved', { 
+        shortCode: code,
+        clickCount: response.data.clicks
       });
+      
       return response.data;
     } catch (error) {
-      logger.error('Failed to fetch URL statistics', { 
-        shortCode,
+      logger.error('Stats fetch failed', { 
+        shortCode: code,
         error: error.response?.data?.message || error.message
       });
       throw error;
     }
   },
 
-  // Get all URLs
+  // fetch all URLs from backend
   getAllUrls: async () => {
     try {
-      logger.info('Fetching all URLs');
-      const response = await api.get('/api/urls');
-      logger.info('All URLs retrieved', { count: response.data.length });
-      return response.data;
-    } catch (error) {
-      logger.error('Failed to fetch all URLs', { 
-        error: error.response?.data?.message || error.message
-      });
-      throw error;
+      logger.info('Fetching all URLs from backend');
+      const resp = await api.get('/api/urls');
+      
+      const urlCount = resp.data.length;
+      logger.info('URLs retrieved', { count: urlCount });
+      console.log(`Got ${urlCount} URLs from server`); // debug
+      
+      return resp.data;
+    } catch (err) {
+      const errorMsg = err.response?.data?.message || err.message;
+      logger.error('Failed to get URLs', { error: errorMsg });
+      throw err;
     }
   },
 

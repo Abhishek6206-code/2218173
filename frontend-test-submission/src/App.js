@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import {
   AppBar,
-  Toolbar,
+  Toolbar, 
   Typography,
   Container,
   Box,
@@ -20,34 +20,40 @@ function App() {
   const navigate = useNavigate();
   const logger = useLogger();
 
-  // Determine current tab based on route
+  // figure out which tab should be active
   const getCurrentTab = () => {
-    if (location.pathname === '/statistics') return 1;
-    return 0;
+    if (location.pathname === '/statistics') {
+      return 1;
+    }
+    return 0; // default to first tab
   };
 
   const handleTabChange = (event, newValue) => {
     const routes = ['/', '/statistics'];
     const targetRoute = routes[newValue];
     
-    logger.info('Navigation requested', { 
+    // log navigation for analytics
+    logger.info('User navigating to new page', { 
       from: location.pathname,
-      to: targetRoute
+      to: targetRoute,
+      tabIndex: newValue
     });
     
     navigate(targetRoute);
   };
 
   React.useEffect(() => {
-    logger.info('Page visited', { 
-      path: location.pathname,
-      timestamp: new Date().toISOString()
+    // track page views for analytics
+    logger.info('Page view', { 
+      page: location.pathname,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent
     });
   }, [location.pathname, logger]);
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      {/* Header */}
+      {/* Main header bar */}
       <AppBar position="static" elevation={0}>
         <Toolbar>
           <Typography 

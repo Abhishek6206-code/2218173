@@ -26,6 +26,8 @@ import {
 import { urlAPI, validateUrl, validateShortCode, validateValidity } from '../utils/api';
 import { useLogger } from '../utils/logger';
 
+// TODO: maybe add bulk export functionality later
+
 function UrlShortener() {
   const logger = useLogger();
   const [urls, setUrls] = useState([
@@ -34,58 +36,73 @@ function UrlShortener() {
   const [loading, setLoading] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
-  // Add new URL input
+  // add another URL input field
   const addUrlInput = () => {
-    if (urls.length < 5) {
-      const newId = Math.max(...urls.map(u => u.id)) + 1;
-      setUrls([...urls, { 
-        id: newId, 
-        url: '', 
-        validity: 30, 
-        shortcode: '', 
-        error: '', 
-        result: null 
-      }]);
-      logger.info('URL input added', { totalInputs: urls.length + 1 });
+    if (urls.length >= 5) {
+      console.log('Already at max URLs');
+      return;
     }
+    
+    const newId = Math.max(...urls.map(u => u.id)) + 1;
+    const newUrl = { 
+      id: newId, 
+      url: '', 
+      validity: 30, 
+      shortcode: '', 
+      error: '', 
+      result: null 
+    };
+    setUrls([...urls, newUrl]);
+    
+    logger.info('Added new URL input', { totalInputs: urls.length + 1 });
   };
 
-  // Remove URL input
+  // remove a URL input field
   const removeUrlInput = (id) => {
-    if (urls.length > 1) {
-      setUrls(urls.filter(u => u.id !== id));
-      logger.info('URL input removed', { removedId: id, totalInputs: urls.length - 1 });
+    if (urls.length <= 1) {
+      console.log('Cannot remove last URL input');
+      return;
     }
+    
+    const filtered = urls.filter(u => u.id !== id);
+    setUrls(filtered);
+    logger.info('Removed URL input', { removedId: id, remaining: filtered.length });
   };
 
-  // Update URL data
+  // update URL form data
   const updateUrl = (id, field, value) => {
-    setUrls(urls.map(u => 
-      u.id === id 
-        ? { ...u, [field]: value, error: '', result: null }
-        : u
-    ));
+    const updated = urls.map(u => {
+      if (u.id === id) {
+        return { ...u, [field]: value, error: '', result: null };
+      }
+      return u;
+    });
+    setUrls(updated);
   };
 
-  // Validate single URL entry
+  // check if a single URL entry is valid
   const validateUrlEntry = (entry) => {
-    if (!entry.url.trim()) {
+    // check required fields first
+    if (!entry.url || !entry.url.trim()) {
       return 'URL is required';
     }
     
+    // validate URL format
     if (!validateUrl(entry.url)) {
       return 'Please enter a valid HTTP or HTTPS URL';
     }
     
+    // check validity period if provided
     if (entry.validity && !validateValidity(entry.validity)) {
       return 'Validity must be a positive integer (minutes)';
     }
     
-    if (entry.shortcode && !validateShortCode(entry.shortcode)) {
+    // validate custom shortcode if provided
+    if (entry.shortcode && entry.shortcode.trim() && !validateShortCode(entry.shortcode)) {
       return 'Shortcode must be 3-10 alphanumeric characters';
     }
     
-    return null;
+    return null; // no errors
   };
 
   // Validate all URLs
@@ -125,71 +142,87 @@ function UrlShortener() {
     return null;
   };
 
-  // Handle form submission
+  // handle the form submission
   const handleSubmit = async () => {
-    logger.info('URL shortening form submitted', { urlCount: urls.length });
+    console.log('Starting URL shortening process...'); // debug log
+    logger.info('Form submitted', { urlCount: urls.length });
     
-    // Clear previous errors
+    // reset any previous errors
     setGlobalError('');
-    setUrls(urls.map(u => ({ ...u, error: '', result: null })));
+    const clearedUrls = urls.map(u => ({ ...u, error: '', result: null }));
+    setUrls(clearedUrls);
 
-    // Validate all URLs
+    // validate everything first
     const validationError = validateAllUrls();
     if (validationError) {
       setGlobalError(validationError);
-      logger.warn('Form validation failed', { error: validationError });
+      logger.warn('Validation failed', { error: validationError });
       return;
     }
 
     setLoading(true);
 
     try {
-      const validUrls = urls.filter(u => u.url.trim());
-      const promises = validUrls.map(async (entry) => {
+      // only process URLs that have something entered
+      const validUrls = urls.filter(u => u.url && u.url.trim());
+      console.log(`Processing ${validUrls.length} URLs...`);
+      
+      // create promises for all the API calls
+      const apiPromises = validUrls.map(async (entry) => {
         try {
-          const urlData = {
+          // prepare the data for the API
+          const requestData = {
             url: entry.url.trim(),
-            validity: parseInt(entry.validity) || 30,
-            ...(entry.shortcode && { shortcode: entry.shortcode.trim() })
+            validity: parseInt(entry.validity) || 30
           };
+          
+          // add shortcode if provided
+          if (entry.shortcode && entry.shortcode.trim()) {
+            requestData.shortcode = entry.shortcode.trim();
+          }
 
-          const result = await urlAPI.createShortUrl(urlData);
-          return { id: entry.id, success: true, result };
+          const result = await urlAPI.createShortUrl(requestData);
+          return { id: entry.id, success: true, result: result };
         } catch (error) {
-          logger.error('URL shortening failed for individual URL', {
+          const errorMsg = error.response?.data?.message || error.message;
+          logger.error('API call failed', {
             url: entry.url,
-            error: error.response?.data?.message || error.message
+            error: errorMsg
           });
           return { 
             id: entry.id, 
             success: false, 
-            error: error.response?.data?.message || 'Failed to shorten URL' 
+            error: errorMsg || 'Failed to shorten URL' 
           };
         }
       });
 
-      const results = await Promise.all(promises);
+      // wait for all API calls to complete
+      const results = await Promise.all(apiPromises);
       
-      // Update URLs with results
-      setUrls(urls.map(u => {
-        const result = results.find(r => r.id === u.id);
-        if (result) {
-          if (result.success) {
-            return { ...u, result: result.result, error: '' };
+      // update the UI with the results
+      const updatedUrls = urls.map(u => {
+        const apiResult = results.find(r => r.id === u.id);
+        if (apiResult) {
+          if (apiResult.success) {
+            return { ...u, result: apiResult.result, error: '' };
           } else {
-            return { ...u, error: result.error, result: null };
+            return { ...u, error: apiResult.error, result: null };
           }
         }
-        return u;
-      }));
+        return u; // no change for this URL
+      });
+      setUrls(updatedUrls);
 
+      // log the final results
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
+      console.log(`Completed: ${successCount} success, ${failCount} failed`);
 
-      logger.info('URL shortening completed', { 
-        successCount, 
-        failCount,
-        totalProcessed: results.length
+      logger.info('Batch URL processing complete', { 
+        successful: successCount, 
+        failed: failCount,
+        total: results.length
       });
 
     } catch (error) {

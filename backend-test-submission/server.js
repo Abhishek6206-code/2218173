@@ -1,169 +1,188 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require('uuid'); // for generating unique IDs if needed
 const cron = require('node-cron');
 const path = require('path');
 
-// Import our custom logging middleware
+// Import the custom logging middleware we built
 const { createLogger } = require('../logging-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize logger for backend
+console.log('Starting AFFORDMED URL Shortener Backend...'); // quick debug log
+
+// set up logger
 const logger = createLogger({
   serviceName: 'URL-SHORTENER-BACKEND',
-  environment: process.env.NODE_ENV || 'development',
+  environment: process.env.NODE_ENV || 'development', 
   logLevel: 'info'
 });
 
-// Middleware
-app.use(helmet());
+// Security and CORS setup
+app.use(helmet()); // basic security headers
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], // allow frontend
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '10mb' })); // parse JSON bodies
 app.use(express.urlencoded({ extended: true }));
 
-// Use our custom logging middleware
+// plug in our logging middleware
 app.use(logger.expressMiddleware());
 
-// In-memory storage (in production, use a proper database)
-const urlDatabase = new Map();
-const clickAnalytics = new Map();
+// Storage - using Maps for now (TODO: switch to real DB later)
+const urlDatabase = new Map(); // stores main URL data
+const clickAnalytics = new Map(); // stores click tracking data
 
-// Helper function to generate unique short code
+if (process.env.NODE_ENV === 'development') {
+  console.log('Using in-memory storage for development');
+}
+
+// generates a random 6 character shortcode
 function generateShortCode() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
+  // just loop 6 times and pick random chars
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
 }
 
-// Helper function to validate URL
-function isValidUrl(string) {
+// check if URL is valid format
+function isValidUrl(urlString) {
   try {
-    const url = new URL(string);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch (_) {
-    return false;
+    const urlObj = new URL(urlString);
+    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+  } catch (error) {
+    return false; // invalid URL
   }
 }
 
-// Helper function to validate short code
+// validate custom shortcode format
 function isValidShortCode(code) {
+  // 3-10 alphanumeric characters only
   return /^[a-zA-Z0-9]{3,10}$/.test(code);
 }
 
-// Helper function to check if URL has expired
-function isExpired(expiry) {
-  return new Date() > new Date(expiry);
+// check if a URL has expired
+function isExpired(expiryDate) {
+  return new Date() > new Date(expiryDate);
 }
 
-// Cleanup expired URLs every minute
+// run cleanup every minute to remove expired URLs
 cron.schedule('* * * * *', () => {
-  let cleanedCount = 0;
-  for (const [shortCode, urlData] of urlDatabase.entries()) {
-    if (isExpired(urlData.expiry)) {
-      urlDatabase.delete(shortCode);
-      clickAnalytics.delete(shortCode);
-      cleanedCount++;
+  let removed = 0;
+  // check all URLs for expiry
+  for (const [code, data] of urlDatabase.entries()) {
+    if (isExpired(data.expiry)) {
+      urlDatabase.delete(code);
+      clickAnalytics.delete(code); // also remove analytics
+      removed++;
     }
   }
-  if (cleanedCount > 0) {
-    logger.info('Cleanup completed', { expiredUrlsRemoved: cleanedCount });
+  // only log if we actually cleaned something
+  if (removed > 0) {
+    logger.info('Expired URL cleanup', { removedCount: removed });
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Cleaned up ${removed} expired URLs`);
+    }
   }
 });
 
-// 1. Create Short URL
+// API endpoint to create short URLs
 app.post('/shorturls', async (req, res) => {
   try {
     const { url, validity = 30, shortcode } = req.body;
-
-    // Validation
+    
+    // basic validation first
     if (!url) {
-      logger.warn('URL creation failed - missing URL', { requestBody: req.body });
+      logger.warn('Missing URL in request', { body: req.body });
       return res.status(400).json({
         error: 'URL is required',
         message: 'Please provide a valid URL to shorten'
       });
     }
 
+    // check URL format
     if (!isValidUrl(url)) {
-      logger.warn('URL creation failed - invalid URL format', { url });
+      logger.warn('Invalid URL format provided', { url: url });
       return res.status(400).json({
         error: 'Invalid URL format',
         message: 'Please provide a valid HTTP or HTTPS URL'
       });
     }
 
+    // validate validity period
     if (validity && (!Number.isInteger(validity) || validity < 1)) {
-      logger.warn('URL creation failed - invalid validity', { validity });
+      logger.warn('Invalid validity period', { validity: validity });
       return res.status(400).json({
-        error: 'Invalid validity period',
+        error: 'Invalid validity period', 
         message: 'Validity must be a positive integer (minutes)'
       });
     }
 
-    let finalShortCode;
+    let shortCodeToUse;
 
-    // Handle custom shortcode
+    // handle custom shortcode if provided
     if (shortcode) {
       if (!isValidShortCode(shortcode)) {
-        logger.warn('URL creation failed - invalid shortcode format', { shortcode });
+        logger.warn('Bad shortcode format', { shortcode: shortcode });
         return res.status(400).json({
           error: 'Invalid shortcode format',
           message: 'Shortcode must be 3-10 alphanumeric characters'
         });
       }
 
+      // check if shortcode already taken
       if (urlDatabase.has(shortcode)) {
-        logger.warn('URL creation failed - shortcode already exists', { shortcode });
+        logger.warn('Shortcode already exists', { shortcode: shortcode });
         return res.status(409).json({
           error: 'Shortcode already exists',
           message: 'Please choose a different shortcode'
         });
       }
 
-      finalShortCode = shortcode;
+      shortCodeToUse = shortcode;
     } else {
-      // Generate unique shortcode
+      // generate a unique random shortcode
       do {
-        finalShortCode = generateShortCode();
-      } while (urlDatabase.has(finalShortCode));
+        shortCodeToUse = generateShortCode();
+      } while (urlDatabase.has(shortCodeToUse)); // keep trying until unique
     }
 
-    // Calculate expiry time
+    // calculate when this URL expires
     const expiryTime = new Date();
     expiryTime.setMinutes(expiryTime.getMinutes() + validity);
 
-    // Store URL data
-    const urlData = {
+    // create the URL record
+    const urlRecord = {
       originalUrl: url,
-      shortCode: finalShortCode,
+      shortCode: shortCodeToUse,
       createdAt: new Date().toISOString(),
       expiry: expiryTime.toISOString(),
       clicks: 0
     };
 
-    urlDatabase.set(finalShortCode, urlData);
-    clickAnalytics.set(finalShortCode, []);
+    // save to our "database"
+    urlDatabase.set(shortCodeToUse, urlRecord);
+    clickAnalytics.set(shortCodeToUse, []); // empty analytics array to start
 
-    const shortLink = `${req.protocol}://${req.get('host')}/${finalShortCode}`;
+    // build the full short URL 
+    const shortLink = `${req.protocol}://${req.get('host')}/${shortCodeToUse}`;
 
-    logger.info('URL shortened successfully', {
-      originalUrl: url,
-      shortCode: finalShortCode,
-      validity: validity,
-      expiry: expiryTime.toISOString()
+    logger.info('Created new short URL', {
+      original: url,
+      shortCode: shortCodeToUse,
+      validityMinutes: validity,
+      expiresAt: expiryTime.toISOString()
     });
 
+    // send response back to client
     res.status(201).json({
-      shortLink,
+      shortLink: shortLink,
       expiry: expiryTime.toISOString()
     });
 

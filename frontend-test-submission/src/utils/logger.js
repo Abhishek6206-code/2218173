@@ -1,4 +1,4 @@
-// Frontend logging utility using our custom logging middleware
+// Custom frontend logger that matches the backend logging middleware
 class FrontendLogger {
   constructor() {
     this.serviceName = 'URL-SHORTENER-FRONTEND';
@@ -6,7 +6,7 @@ class FrontendLogger {
     this.logLevel = 'info';
     this.enableTimestamp = true;
     
-    // Log levels hierarchy
+    // same log levels as backend
     this.levels = {
       error: 0,
       warn: 1,
@@ -15,6 +15,10 @@ class FrontendLogger {
     };
     
     this.currentLevel = this.levels[this.logLevel] || this.levels.info;
+    
+    if (this.environment === 'development') {
+      console.log('Frontend logger initialized');
+    }
   }
 
   formatMessage(level, message, metadata = {}) {
@@ -55,22 +59,30 @@ class FrontendLogger {
   }
 
   log(level, message, metadata = {}) {
-    if (!this.shouldLog(level)) return;
+    if (!this.shouldLog(level)) {
+      return; // skip if log level too low
+    }
 
-    const logEntry = this.formatMessage(level, message, metadata);
+    const entry = this.formatMessage(level, message, metadata);
     
-    // Store to internal log buffer
-    this.storeLog(logEntry);
+    // save to storage
+    this.storeLog(entry);
     
-    // For development, also display to console as fallback
+    // in dev mode, also output to console for debugging
     if (this.environment === 'development') {
-      const displayMessage = `${logEntry.timestamp} [${logEntry.service}] [${logEntry.level}] ${message}`;
-      const consoleMethod = level === 'error' ? 'error' : 
-                           level === 'warn' ? 'warn' : 'log';
-      console[consoleMethod](displayMessage, metadata);
+      const displayMsg = `${entry.timestamp} [${entry.service}] [${entry.level}] ${message}`;
+      
+      // use appropriate console method
+      if (level === 'error') {
+        console.error(displayMsg, metadata);
+      } else if (level === 'warn') {
+        console.warn(displayMsg, metadata);
+      } else {
+        console.log(displayMsg, metadata);
+      }
     }
     
-    return logEntry;
+    return entry;
   }
 
   error(message, metadata = {}) {
