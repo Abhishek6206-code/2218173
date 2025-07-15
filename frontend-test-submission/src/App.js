@@ -20,19 +20,17 @@ function App() {
   const navigate = useNavigate();
   const logger = useLogger();
 
-  // figure out which tab should be active
   const getCurrentTab = () => {
     if (location.pathname === '/statistics') {
       return 1;
     }
-    return 0; // default to first tab
+    return 0;
   };
 
   const handleTabChange = (event, newValue) => {
     const routes = ['/', '/statistics'];
     const targetRoute = routes[newValue];
     
-    // log navigation for analytics
     logger.info('User navigating to new page', { 
       from: location.pathname,
       to: targetRoute,
@@ -43,7 +41,6 @@ function App() {
   };
 
   React.useEffect(() => {
-    // track page views for analytics
     logger.info('Page view', { 
       page: location.pathname,
       timestamp: new Date().toISOString(),
@@ -53,7 +50,6 @@ function App() {
 
   return (
     <Box sx={{ flexGrow: 1 }}>
-      {/* Main header bar */}
       <AppBar position="static" elevation={0}>
         <Toolbar>
           <Typography 
@@ -79,7 +75,6 @@ function App() {
         </Toolbar>
       </AppBar>
 
-      {/* Navigation Tabs */}
       <Paper elevation={1} sx={{ borderRadius: 0 }}>
         <Container maxWidth="lg">
           <Tabs 
@@ -111,7 +106,6 @@ function App() {
         </Container>
       </Paper>
 
-      {/* Main Content */}
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
         <Routes>
           <Route path="/" element={<UrlShortener />} />
@@ -120,7 +114,6 @@ function App() {
         </Routes>
       </Container>
 
-      {/* Footer */}
       <Box
         component="footer"
         sx={{
