@@ -43,7 +43,6 @@ function UrlStatistics() {
   const [expandedUrl, setExpandedUrl] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState({});
 
-  // Fetch all URLs
   const fetchUrls = async () => {
     try {
       logger.info('Fetching URL statistics');
@@ -63,7 +62,6 @@ function UrlStatistics() {
     }
   };
 
-  // Fetch detailed analytics for a specific URL
   const fetchUrlDetails = async (shortCode) => {
     try {
       setDetailsLoading(prev => ({ ...prev, [shortCode]: true }));
@@ -71,7 +69,6 @@ function UrlStatistics() {
       
       const details = await urlAPI.getUrlStats(shortCode);
       
-      // Update the URL in the list with detailed analytics
       setUrls(prev => prev.map(url => 
         url.shortCode === shortCode 
           ? { ...url, ...details }
@@ -92,7 +89,6 @@ function UrlStatistics() {
     }
   };
 
-  // Toggle expanded view for URL details
   const toggleExpanded = async (shortCode) => {
     if (expandedUrl === shortCode) {
       setExpandedUrl(null);
@@ -101,7 +97,6 @@ function UrlStatistics() {
       setExpandedUrl(shortCode);
       logger.info('Analytics panel expanded', { shortCode });
       
-      // Fetch detailed analytics if not already loaded
       const url = urls.find(u => u.shortCode === shortCode);
       if (!url.clickData) {
         await fetchUrlDetails(shortCode);
@@ -109,7 +104,6 @@ function UrlStatistics() {
     }
   };
 
-  // Copy to clipboard
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -119,12 +113,10 @@ function UrlStatistics() {
     }
   };
 
-  // Format date
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
   };
 
-  // Format relative time
   const formatRelativeTime = (dateString) => {
     const now = new Date();
     const date = new Date(dateString);
@@ -139,7 +131,6 @@ function UrlStatistics() {
     return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
-  // Check if URL is expired
   const isExpired = (expiryDate) => {
     return new Date() > new Date(expiryDate);
   };
@@ -204,7 +195,6 @@ function UrlStatistics() {
             <Grid item xs={12} key={url.shortCode}>
               <Card elevation={2}>
                 <CardContent sx={{ p: 3 }}>
-                  {/* Main URL Info */}
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     <Box sx={{ flexGrow: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -298,7 +288,6 @@ function UrlStatistics() {
                     </Box>
                   </Box>
 
-                  {/* Detailed Analytics */}
                   <Collapse in={expandedUrl === url.shortCode}>
                     <Divider sx={{ my: 2 }} />
                     
