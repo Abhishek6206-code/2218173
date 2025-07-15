@@ -7,8 +7,7 @@ import {
   Container,
   Box,
   Tabs,
-  Tab,
-  Paper
+  Tab
 } from '@mui/material';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import UrlShortener from './components/UrlShortener';
@@ -33,8 +32,7 @@ function App() {
     
     logger.info('User navigating to new page', { 
       from: location.pathname,
-      to: targetRoute,
-      tabIndex: newValue
+      to: targetRoute
     });
     
     navigate(targetRoute);
@@ -42,108 +40,49 @@ function App() {
 
   React.useEffect(() => {
     logger.info('Page view', { 
-      page: location.pathname,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent
+      page: location.pathname
     });
   }, [location.pathname, logger]);
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static" elevation={0}>
+    <Box>
+      <AppBar position="static">
         <Toolbar>
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
-              flexGrow: 1,
-              fontWeight: 'bold',
-              letterSpacing: '0.5px'
-            }}
-          >
+          <Typography variant="h6" sx={{ flexGrow: 1 }}>
             AFFORDMED® URL Shortener
           </Typography>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontStyle: 'italic',
-              opacity: 0.9
-            }}
-          >
+          <Typography variant="body2">
             Technology, Innovation & Affordability
           </Typography>
         </Toolbar>
       </AppBar>
 
-      <Paper elevation={1} sx={{ borderRadius: 0 }}>
-        <Container maxWidth="lg">
-          <Tabs 
-            value={getCurrentTab()} 
-            onChange={handleTabChange}
-            indicatorColor="primary"
-            textColor="primary"
-            sx={{ 
-              minHeight: 48,
-              '& .MuiTab-root': {
-                minHeight: 48,
-                fontWeight: 500
-              }
-            }}
-          >
-            <Tab 
-              label="URL Shortener" 
-              component={RouterLink} 
-              to="/"
-              sx={{ textTransform: 'none' }}
-            />
-            <Tab 
-              label="URL Statistics" 
-              component={RouterLink} 
-              to="/statistics"
-              sx={{ textTransform: 'none' }}
-            />
-          </Tabs>
-        </Container>
-      </Paper>
+      <Container maxWidth="lg">
+        <Tabs 
+          value={getCurrentTab()} 
+          onChange={handleTabChange}
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab 
+            label="URL Shortener" 
+            component={RouterLink} 
+            to="/"
+          />
+          <Tab 
+            label="URL Statistics" 
+            component={RouterLink} 
+            to="/statistics"
+          />
+        </Tabs>
+      </Container>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 4 }}>
         <Routes>
           <Route path="/" element={<UrlShortener />} />
           <Route path="/statistics" element={<UrlStatistics />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Container>
-
-      <Box
-        component="footer"
-        sx={{
-          mt: 'auto',
-          py: 3,
-          px: 2,
-          backgroundColor: (theme) => theme.palette.grey[100],
-          borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Container maxWidth="lg">
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
-            align="center"
-            sx={{ fontWeight: 500 }}
-          >
-            © 2025 AFFORDMED®. All rights reserved.
-          </Typography>
-          <Typography 
-            variant="caption" 
-            color="text.secondary" 
-            align="center" 
-            display="block"
-            sx={{ mt: 0.5 }}
-          >
-            Powered by React & Node.js with Custom Logging Middleware
-          </Typography>
-        </Container>
-      </Box>
     </Box>
   );
 }

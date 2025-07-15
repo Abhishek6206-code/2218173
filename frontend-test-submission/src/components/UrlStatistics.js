@@ -10,7 +10,6 @@ import {
   Paper,
   Chip,
   IconButton,
-  Tooltip,
   Table,
   TableBody,
   TableCell,
@@ -19,18 +18,13 @@ import {
   TableRow,
   Collapse,
   Button,
-  Divider,
-  Stack
+  Divider
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
   Launch as LaunchIcon,
   ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-  Analytics as AnalyticsIcon,
-  Schedule as ScheduleIcon,
-  Mouse as MouseIcon,
-  Link as LinkIcon
+  ExpandLess as ExpandLessIcon
 } from '@mui/icons-material';
 import { urlAPI } from '../utils/api';
 import { useLogger } from '../utils/logger';
@@ -52,11 +46,11 @@ function UrlStatistics() {
       const data = await urlAPI.getAllUrls();
       setUrls(data);
       
-      logger.info('URL statistics loaded', { count: data.length });
+      logger.info('URL statistics loaded');
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to fetch URLs';
       setError(errorMessage);
-      logger.error('Failed to fetch URL statistics', { error: errorMessage });
+      logger.error('Failed to fetch URL statistics');
     } finally {
       setLoading(false);
     }
@@ -65,7 +59,7 @@ function UrlStatistics() {
   const fetchUrlDetails = async (shortCode) => {
     try {
       setDetailsLoading(prev => ({ ...prev, [shortCode]: true }));
-      logger.info('Fetching detailed analytics', { shortCode });
+      logger.info('Fetching detailed analytics');
       
       const details = await urlAPI.getUrlStats(shortCode);
       
@@ -75,15 +69,11 @@ function UrlStatistics() {
           : url
       ));
       
-      logger.info('Detailed analytics loaded', { 
-        shortCode, 
-        clicks: details.clicks,
-        clickDataCount: details.clickData?.length || 0
-      });
+      logger.info('Detailed analytics loaded');
       
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to fetch URL details';
-      logger.error('Failed to fetch URL details', { shortCode, error: errorMessage });
+      logger.error('Failed to fetch URL details');
     } finally {
       setDetailsLoading(prev => ({ ...prev, [shortCode]: false }));
     }
@@ -92,10 +82,10 @@ function UrlStatistics() {
   const toggleExpanded = async (shortCode) => {
     if (expandedUrl === shortCode) {
       setExpandedUrl(null);
-      logger.info('Analytics panel collapsed', { shortCode });
+      logger.info('Analytics panel collapsed');
     } else {
       setExpandedUrl(shortCode);
-      logger.info('Analytics panel expanded', { shortCode });
+      logger.info('Analytics panel expanded');
       
       const url = urls.find(u => u.shortCode === shortCode);
       if (!url.clickData) {
@@ -107,28 +97,14 @@ function UrlStatistics() {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      logger.info('URL copied to clipboard', { url: text });
+      logger.info('URL copied to clipboard');
     } catch (error) {
-      logger.warn('Failed to copy to clipboard', { error: error.message });
+      logger.warn('Failed to copy to clipboard');
     }
   };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleString();
-  };
-
-  const formatRelativeTime = (dateString) => {
-    const now = new Date();
-    const date = new Date(dateString);
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} min ago`;
-    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
   };
 
   const isExpired = (expiryDate) => {
@@ -142,12 +118,7 @@ function UrlStatistics() {
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Box textAlign="center">
-          <CircularProgress size={60} />
-          <Typography variant="h6" sx={{ mt: 2 }}>
-            Loading URL Statistics...
-          </Typography>
-        </Box>
+        <CircularProgress />
       </Box>
     );
   }
@@ -155,7 +126,7 @@ function UrlStatistics() {
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" sx={{ fontWeight: 600 }}>
+        <Typography variant="h4">
           URL Statistics
         </Typography>
         <Button
@@ -168,11 +139,6 @@ function UrlStatistics() {
         </Button>
       </Box>
 
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        View analytics and statistics for all your shortened URLs including click counts, 
-        creation dates, expiry times, and detailed click data with timestamps and referrers.
-      </Typography>
-
       {error && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {error}
@@ -180,8 +146,7 @@ function UrlStatistics() {
       )}
 
       {urls.length === 0 ? (
-        <Paper elevation={1} sx={{ p: 4, textAlign: 'center' }}>
-          <AnalyticsIcon sx={{ fontSize: 60, color: 'text.secondary', mb: 2 }} />
+        <Paper sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="h6" color="text.secondary" gutterBottom>
             No URLs Found
           </Typography>
@@ -193,25 +158,23 @@ function UrlStatistics() {
         <Grid container spacing={3}>
           {urls.map((url) => (
             <Grid item xs={12} key={url.shortCode}>
-              <Card elevation={2}>
-                <CardContent sx={{ p: 3 }}>
+              <Card>
+                <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
                     <Box sx={{ flexGrow: 1 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                        <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                        <Typography variant="h6">
                           /{url.shortCode}
                         </Typography>
                         
                         <Chip
                           size="small"
-                          icon={<MouseIcon />}
                           label={`${url.clicks} clicks`}
                           color={url.clicks > 0 ? 'primary' : 'default'}
                         />
                         
                         <Chip
                           size="small"
-                          icon={<ScheduleIcon />}
                           label={isExpired(url.expiry) ? 'Expired' : 'Active'}
                           color={isExpired(url.expiry) ? 'error' : 'success'}
                         />
@@ -220,14 +183,7 @@ function UrlStatistics() {
                       <Typography 
                         variant="body2" 
                         color="text.secondary" 
-                        sx={{ 
-                          mb: 2,
-                          wordBreak: 'break-all',
-                          fontFamily: 'monospace',
-                          backgroundColor: 'grey.100',
-                          p: 1,
-                          borderRadius: 1
-                        }}
+                        sx={{ mb: 2, wordBreak: 'break-all' }}
                       >
                         <strong>Original:</strong> {url.originalUrl}
                       </Typography>
@@ -238,53 +194,39 @@ function UrlStatistics() {
                         sx={{ 
                           mb: 2,
                           wordBreak: 'break-all',
-                          fontFamily: 'monospace',
-                          backgroundColor: 'primary.light',
-                          color: 'primary.contrastText',
-                          p: 1,
-                          borderRadius: 1,
                           cursor: 'pointer'
                         }}
                         onClick={() => copyToClipboard(url.shortLink)}
-                        title="Click to copy"
                       >
                         <strong>Short:</strong> {url.shortLink}
                       </Typography>
 
-                      <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
-                        <Typography variant="caption" color="text.secondary">
-                          Created: {formatDate(url.createdAt)}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Expires: {formatDate(url.expiry)}
-                        </Typography>
-                      </Stack>
+                      <Typography variant="caption" color="text.secondary">
+                        Created: {formatDate(url.createdAt)} | 
+                        Expires: {formatDate(url.expiry)}
+                      </Typography>
                     </Box>
 
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                      <Tooltip title="Open short URL">
-                        <IconButton 
-                          color="primary"
-                          onClick={() => window.open(url.shortLink, '_blank')}
-                        >
-                          <LaunchIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <IconButton 
+                        color="primary"
+                        onClick={() => window.open(url.shortLink, '_blank')}
+                      >
+                        <LaunchIcon />
+                      </IconButton>
                       
-                      <Tooltip title={expandedUrl === url.shortCode ? 'Hide details' : 'Show details'}>
-                        <IconButton 
-                          onClick={() => toggleExpanded(url.shortCode)}
-                          disabled={detailsLoading[url.shortCode]}
-                        >
-                          {detailsLoading[url.shortCode] ? (
-                            <CircularProgress size={24} />
-                          ) : expandedUrl === url.shortCode ? (
-                            <ExpandLessIcon />
-                          ) : (
-                            <ExpandMoreIcon />
-                          )}
-                        </IconButton>
-                      </Tooltip>
+                      <IconButton 
+                        onClick={() => toggleExpanded(url.shortCode)}
+                        disabled={detailsLoading[url.shortCode]}
+                      >
+                        {detailsLoading[url.shortCode] ? (
+                          <CircularProgress size={24} />
+                        ) : expandedUrl === url.shortCode ? (
+                          <ExpandLessIcon />
+                        ) : (
+                          <ExpandMoreIcon />
+                        )}
+                      </IconButton>
                     </Box>
                   </Box>
 
@@ -298,18 +240,17 @@ function UrlStatistics() {
                         </Typography>
                         
                         {url.clickData.length === 0 ? (
-                          <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                          <Typography variant="body2" color="text.secondary">
                             No clicks recorded yet.
                           </Typography>
                         ) : (
-                          <TableContainer component={Paper} variant="outlined">
+                          <TableContainer component={Paper}>
                             <Table size="small">
                               <TableHead>
                                 <TableRow>
-                                  <TableCell><strong>Timestamp</strong></TableCell>
-                                  <TableCell><strong>Referrer</strong></TableCell>
-                                  <TableCell><strong>Location</strong></TableCell>
-                                  <TableCell><strong>Relative Time</strong></TableCell>
+                                  <TableCell>Timestamp</TableCell>
+                                  <TableCell>Referrer</TableCell>
+                                  <TableCell>Location</TableCell>
                                 </TableRow>
                               </TableHead>
                               <TableBody>
@@ -326,9 +267,6 @@ function UrlStatistics() {
                                     <TableCell>
                                       {click.location || 'Unknown'}
                                     </TableCell>
-                                    <TableCell>
-                                      {formatRelativeTime(click.timestamp)}
-                                    </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
@@ -339,7 +277,7 @@ function UrlStatistics() {
                     ) : (
                       <Box sx={{ textAlign: 'center', py: 2 }}>
                         <CircularProgress size={24} />
-                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
                           Loading detailed analytics...
                         </Typography>
                       </Box>

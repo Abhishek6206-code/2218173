@@ -9,20 +9,16 @@ const api = axios.create({
   }
 });
 
-console.log('API base URL:', api.defaults.baseURL);
-
 api.interceptors.request.use(
   (config) => {
-    const hasData = config.data ? true : false;
     logger.info('Making API request', {
       method: config.method?.toUpperCase(),
-      url: config.url,
-      hasData: hasData
+      url: config.url
     });
     return config;
   },
   (error) => {
-    logger.error('Request setup failed', { error: error.message });
+    logger.error('Request setup failed');
     return Promise.reject(error);
   }
 );
@@ -31,22 +27,15 @@ api.interceptors.response.use(
   (response) => {
     logger.info('Got API response', {
       status: response.status,
-      url: response.config.url,
-      method: response.config.method?.toUpperCase(),
-      success: true
+      url: response.config.url
     });
     return response;
   },
   (error) => {
-    const errorInfo = {
+    logger.error('API call failed', {
       status: error.response?.status || 'No status',
-      url: error.config?.url || 'Unknown URL',
-      method: error.config?.method?.toUpperCase() || 'Unknown method',
       message: error.response?.data?.message || error.message
-    };
-    
-    logger.error('API call failed', errorInfo);
-    console.error('API Error:', errorInfo);
+    });
     return Promise.reject(error);
   }
 );
@@ -54,41 +43,28 @@ api.interceptors.response.use(
 export const urlAPI = {
   createShortUrl: async (data) => {
     try {
-      logger.info('Creating short URL', { url: data.url });
+      logger.info('Creating short URL');
       const resp = await api.post('/shorturls', data);
       
-      logger.info('Short URL created', { 
-        shortLink: resp.data.shortLink,
-        expiry: resp.data.expiry
-      });
+      logger.info('Short URL created');
       
       return resp.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message;
-      logger.error('Short URL creation failed', { 
-        error: errorMsg,
-        originalUrl: data.url
-      });
+      logger.error('Short URL creation failed');
       throw err;
     }
   },
 
   getUrlStats: async (code) => {
     try {
-      logger.info('Getting URL stats', { shortCode: code });
+      logger.info('Getting URL stats');
       const response = await api.get(`/shorturls/${code}`);
       
-      logger.info('Stats retrieved', { 
-        shortCode: code,
-        clickCount: response.data.clicks
-      });
+      logger.info('Stats retrieved');
       
       return response.data;
     } catch (error) {
-      logger.error('Stats fetch failed', { 
-        shortCode: code,
-        error: error.response?.data?.message || error.message
-      });
+      logger.error('Stats fetch failed');
       throw error;
     }
   },
@@ -98,31 +74,12 @@ export const urlAPI = {
       logger.info('Fetching all URLs from backend');
       const resp = await api.get('/api/urls');
       
-      const urlCount = resp.data.length;
-      logger.info('URLs retrieved', { count: urlCount });
-      console.log(`Got ${urlCount} URLs from server`);
+      logger.info('URLs retrieved');
       
       return resp.data;
     } catch (err) {
-      const errorMsg = err.response?.data?.message || err.message;
-      logger.error('Failed to get URLs', { error: errorMsg });
+      logger.error('Failed to get URLs');
       throw err;
-    }
-  },
-
-  healthCheck: async () => {
-    try {
-      const response = await api.get('/health');
-      logger.info('Health check successful', { 
-        status: response.data.status,
-        totalUrls: response.data.totalUrls
-      });
-      return response.data;
-    } catch (error) {
-      logger.error('Health check failed', { 
-        error: error.response?.data?.message || error.message
-      });
-      throw error;
     }
   }
 };

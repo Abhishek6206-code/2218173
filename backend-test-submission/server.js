@@ -1,15 +1,10 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
 const { v4: uuidv4 } = require('uuid');
-const cron = require('node-cron');
-const path = require('path');
 const { createLogger } = require('../logging-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-
-console.log('Starting AFFORDMED URL Shortener Backend...');
 
 const logger = createLogger({
   serviceName: 'URL-SHORTENER-BACKEND',
@@ -17,21 +12,12 @@ const logger = createLogger({
   logLevel: 'info'
 });
 
-app.use(helmet());
-app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
-  credentials: true
-}));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(cors());
+app.use(express.json());
 app.use(logger.expressMiddleware());
 
 const urlDatabase = new Map();
 const clickAnalytics = new Map();
-
-if (process.env.NODE_ENV === 'development') {
-  console.log('Using in-memory storage for development');
-}
 
 function generateShortCode() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -44,9 +30,9 @@ function generateShortCode() {
 
 function isValidUrl(urlString) {
   try {
-    const urlObj = new URL(urlString);
-    return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-  } catch (error) {
+    const url = new URL(urlString);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch (e) {
     return false;
   }
 }
@@ -59,29 +45,21 @@ function isExpired(expiryDate) {
   return new Date() > new Date(expiryDate);
 }
 
-cron.schedule('* * * * *', () => {
-  let removed = 0;
+setInterval(() => {
   for (const [code, data] of urlDatabase.entries()) {
     if (isExpired(data.expiry)) {
       urlDatabase.delete(code);
       clickAnalytics.delete(code);
-      removed++;
     }
   }
-  if (removed > 0) {
-    logger.info('Expired URL cleanup', { removedCount: removed });
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`Cleaned up ${removed} expired URLs`);
-    }
-  }
-});
+}, 60000);
 
 app.post('/shorturls', async (req, res) => {
   try {
     const { url, validity = 30, shortcode } = req.body;
     
     if (!url) {
-      logger.warn('Missing URL in request', { body: req.body });
+      logger.warn('Missing URL in request');
       return res.status(400).json({
         error: 'URL is required',
         message: 'Please provide a valid URL to shorten'
@@ -89,7 +67,7 @@ app.post('/shorturls', async (req, res) => {
     }
 
     if (!isValidUrl(url)) {
-      logger.warn('Invalid URL format provided', { url: url });
+      logger.warn('Invalid URL format');
       return res.status(400).json({
         error: 'Invalid URL format',
         message: 'Please provide a valid HTTP or HTTPS URL'
@@ -97,7 +75,7 @@ app.post('/shorturls', async (req, res) => {
     }
 
     if (validity && (!Number.isInteger(validity) || validity < 1)) {
-      logger.warn('Invalid validity period', { validity: validity });
+      logger.warn('Invalid validity period');
       return res.status(400).json({
         error: 'Invalid validity period', 
         message: 'Validity must be a positive integer (minutes)'
@@ -108,7 +86,7 @@ app.post('/shorturls', async (req, res) => {
 
     if (shortcode) {
       if (!isValidShortCode(shortcode)) {
-        logger.warn('Bad shortcode format', { shortcode: shortcode });
+        logger.warn('Bad shortcode format');
         return res.status(400).json({
           error: 'Invalid shortcode format',
           message: 'Shortcode must be 3-10 alphanumeric characters'
@@ -116,7 +94,7 @@ app.post('/shorturls', async (req, res) => {
       }
 
       if (urlDatabase.has(shortcode)) {
-        logger.warn('Shortcode already exists', { shortcode: shortcode });
+        logger.warn('Shortcode already exists');
         return res.status(409).json({
           error: 'Shortcode already exists',
           message: 'Please choose a different shortcode'
@@ -149,8 +127,7 @@ app.post('/shorturls', async (req, res) => {
     logger.info('Created new short URL', {
       original: url,
       shortCode: shortCodeToUse,
-      validityMinutes: validity,
-      expiresAt: expiryTime.toISOString()
+      validityMinutes: validity
     });
 
     res.status(201).json({
@@ -159,7 +136,7 @@ app.post('/shorturls', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error creating short URL', { error: error.message, stack: error.stack });
+    logger.error('Error creating short URL', { error: error.message });
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to create short URL'
@@ -172,7 +149,7 @@ app.get('/shorturls/:shortCode', async (req, res) => {
     const { shortCode } = req.params;
 
     if (!urlDatabase.has(shortCode)) {
-      logger.warn('Statistics request failed - shortcode not found', { shortCode });
+      logger.warn('Stats request - shortcode not found');
       return res.status(404).json({
         error: 'Short URL not found',
         message: 'The requested short URL does not exist'
@@ -182,7 +159,7 @@ app.get('/shorturls/:shortCode', async (req, res) => {
     const urlData = urlDatabase.get(shortCode);
 
     if (isExpired(urlData.expiry)) {
-      logger.warn('Statistics request failed - URL expired', { shortCode, expiry: urlData.expiry });
+      logger.warn('Stats request - URL expired');
       urlDatabase.delete(shortCode);
       clickAnalytics.delete(shortCode);
       return res.status(410).json({
@@ -193,7 +170,7 @@ app.get('/shorturls/:shortCode', async (req, res) => {
 
     const clickData = clickAnalytics.get(shortCode) || [];
 
-    logger.info('Statistics retrieved', { shortCode, clicks: urlData.clicks });
+    logger.info('Stats retrieved');
 
     res.json({
       clicks: urlData.clicks,
@@ -208,7 +185,7 @@ app.get('/shorturls/:shortCode', async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Error retrieving URL statistics', { error: error.message, stack: error.stack });
+    logger.error('Error getting stats', { error: error.message });
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve URL statistics'
@@ -221,7 +198,7 @@ app.get('/:shortCode', async (req, res) => {
     const { shortCode } = req.params;
 
     if (!urlDatabase.has(shortCode)) {
-      logger.warn('Redirect failed - shortcode not found', { shortCode });
+      logger.warn('Redirect failed - not found');
       return res.status(404).json({
         error: 'Short URL not found',
         message: 'The requested short URL does not exist'
@@ -231,7 +208,7 @@ app.get('/:shortCode', async (req, res) => {
     const urlData = urlDatabase.get(shortCode);
 
     if (isExpired(urlData.expiry)) {
-      logger.warn('Redirect failed - URL expired', { shortCode, expiry: urlData.expiry });
+      logger.warn('Redirect failed - expired');
       urlDatabase.delete(shortCode);
       clickAnalytics.delete(shortCode);
       return res.status(410).json({
@@ -256,14 +233,13 @@ app.get('/:shortCode', async (req, res) => {
     logger.info('URL redirect', {
       shortCode,
       originalUrl: urlData.originalUrl,
-      clicks: urlData.clicks,
-      referrer: clickData.referrer
+      clicks: urlData.clicks
     });
 
     res.redirect(302, urlData.originalUrl);
 
   } catch (error) {
-    logger.error('Error redirecting URL', { error: error.message, stack: error.stack });
+    logger.error('Error redirecting', { error: error.message });
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to redirect URL'
@@ -289,11 +265,11 @@ app.get('/api/urls', async (req, res) => {
       }
     }
 
-    logger.info('Retrieved all URLs', { count: allUrls.length });
+    logger.info('Retrieved all URLs');
     res.json(allUrls);
 
   } catch (error) {
-    logger.error('Error retrieving all URLs', { error: error.message, stack: error.stack });
+    logger.error('Error getting all URLs', { error: error.message });
     res.status(500).json({
       error: 'Internal server error',
       message: 'Failed to retrieve URLs'
@@ -301,38 +277,8 @@ app.get('/api/urls', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => {
-  logger.info('Health check requested');
-  res.json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    totalUrls: urlDatabase.size
-  });
-});
-
-app.use((error, req, res, next) => {
-  logger.error('Unhandled error', { error: error.message, stack: error.stack });
-  res.status(500).json({
-    error: 'Internal server error',
-    message: 'An unexpected error occurred'
-  });
-});
-
-app.use((req, res) => {
-  logger.warn('Route not found', { method: req.method, url: req.url });
-  res.status(404).json({
-    error: 'Route not found',
-    message: 'The requested endpoint does not exist'
-  });
-});
-
 app.listen(PORT, () => {
-  logger.info('Server started', {
-    port: PORT,
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
-  });
+  logger.info('Server started', { port: PORT });
 });
 
 module.exports = app;

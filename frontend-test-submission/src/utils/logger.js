@@ -2,25 +2,10 @@ class FrontendLogger {
   constructor() {
     this.serviceName = 'URL-SHORTENER-FRONTEND';
     this.environment = process.env.NODE_ENV || 'development';
-    this.logLevel = 'info';
-    this.enableTimestamp = true;
-    
-    this.levels = {
-      error: 0,
-      warn: 1,
-      info: 2,
-      debug: 3
-    };
-    
-    this.currentLevel = this.levels[this.logLevel] || this.levels.info;
-    
-    if (this.environment === 'development') {
-      console.log('Frontend logger initialized');
-    }
   }
 
   formatMessage(level, message, metadata = {}) {
-    const timestamp = this.enableTimestamp ? new Date().toISOString() : '';
+    const timestamp = new Date().toISOString();
     
     let logEntry = {
       timestamp,
@@ -29,15 +14,10 @@ class FrontendLogger {
       message,
       environment: this.environment,
       url: window.location.href,
-      userAgent: navigator.userAgent,
       ...metadata
     };
 
     return logEntry;
-  }
-
-  shouldLog(level) {
-    return this.levels[level] <= this.currentLevel;
   }
 
   storeLog(logEntry) {
@@ -47,17 +27,11 @@ class FrontendLogger {
       if (logs.length > 1000) logs.shift();
       localStorage.setItem('affordmed_logs', JSON.stringify(logs));
     } catch (e) {
-      if (this.environment === 'development') {
-        console.warn('Failed to store log in localStorage:', e);
-      }
+      // ignore
     }
   }
 
   log(level, message, metadata = {}) {
-    if (!this.shouldLog(level)) {
-      return;
-    }
-
     const entry = this.formatMessage(level, message, metadata);
     
     this.storeLog(entry);
@@ -105,6 +79,7 @@ class FrontendLogger {
     try {
       localStorage.removeItem('affordmed_logs');
     } catch (e) {
+      // ignore
     }
   }
 }

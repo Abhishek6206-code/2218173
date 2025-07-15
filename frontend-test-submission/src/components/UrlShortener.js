@@ -9,18 +9,13 @@ import {
   Grid,
   Alert,
   Divider,
-  Chip,
   CircularProgress,
   Paper,
-  IconButton,
-  Tooltip
+  IconButton
 } from '@mui/material';
 import {
   Add as AddIcon,
   Remove as RemoveIcon,
-  Link as LinkIcon,
-  Schedule as ScheduleIcon,
-  Code as CodeIcon,
   Launch as LaunchIcon
 } from '@mui/icons-material';
 import { urlAPI, validateUrl, validateShortCode, validateValidity } from '../utils/api';
@@ -36,7 +31,6 @@ function UrlShortener() {
 
   const addUrlInput = () => {
     if (urls.length >= 5) {
-      console.log('Already at max URLs');
       return;
     }
     
@@ -51,18 +45,17 @@ function UrlShortener() {
     };
     setUrls([...urls, newUrl]);
     
-    logger.info('Added new URL input', { totalInputs: urls.length + 1 });
+    logger.info('Added new URL input');
   };
 
   const removeUrlInput = (id) => {
     if (urls.length <= 1) {
-      console.log('Cannot remove last URL input');
       return;
     }
     
     const filtered = urls.filter(u => u.id !== id);
     setUrls(filtered);
-    logger.info('Removed URL input', { removedId: id, remaining: filtered.length });
+    logger.info('Removed URL input');
   };
 
   const updateUrl = (id, field, value) => {
@@ -129,8 +122,7 @@ function UrlShortener() {
   };
 
   const handleSubmit = async () => {
-    console.log('Starting URL shortening process...');
-    logger.info('Form submitted', { urlCount: urls.length });
+    logger.info('Form submitted');
     
     setGlobalError('');
     const clearedUrls = urls.map(u => ({ ...u, error: '', result: null }));
@@ -139,7 +131,7 @@ function UrlShortener() {
     const validationError = validateAllUrls();
     if (validationError) {
       setGlobalError(validationError);
-      logger.warn('Validation failed', { error: validationError });
+      logger.warn('Validation failed');
       return;
     }
 
@@ -147,7 +139,6 @@ function UrlShortener() {
 
     try {
       const validUrls = urls.filter(u => u.url && u.url.trim());
-      console.log(`Processing ${validUrls.length} URLs...`);
       
       const apiPromises = validUrls.map(async (entry) => {
         try {
@@ -164,10 +155,7 @@ function UrlShortener() {
           return { id: entry.id, success: true, result: result };
         } catch (error) {
           const errorMsg = error.response?.data?.message || error.message;
-          logger.error('API call failed', {
-            url: entry.url,
-            error: errorMsg
-          });
+          logger.error('API call failed', { error: errorMsg });
           return { 
             id: entry.id, 
             success: false, 
@@ -193,12 +181,10 @@ function UrlShortener() {
 
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
-      console.log(`Completed: ${successCount} success, ${failCount} failed`);
 
       logger.info('Batch URL processing complete', { 
         successful: successCount, 
-        failed: failCount,
-        total: results.length
+        failed: failCount
       });
 
     } catch (error) {
@@ -214,21 +200,16 @@ function UrlShortener() {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      logger.info('Short URL copied to clipboard', { shortUrl: text });
+      logger.info('Short URL copied to clipboard');
     } catch (error) {
-      logger.warn('Failed to copy to clipboard', { error: error.message });
+      logger.warn('Failed to copy to clipboard');
     }
   };
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+      <Typography variant="h4" gutterBottom>
         URL Shortener
-      </Typography>
-      
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Shorten up to 5 URLs at once. Enter the original URL, optionally set validity period (default: 30 minutes) 
-        and custom shortcode, then click "Shorten URLs" to generate your shortened links.
       </Typography>
 
       {globalError && (
@@ -237,8 +218,8 @@ function UrlShortener() {
         </Alert>
       )}
 
-      <Card elevation={2}>
-        <CardContent sx={{ p: 3 }}>
+      <Card>
+        <CardContent>
           {urls.map((entry, index) => (
             <Box key={entry.id}>
               {index > 0 && <Divider sx={{ my: 3 }} />}
@@ -249,15 +230,13 @@ function UrlShortener() {
                 </Typography>
                 
                 {urls.length > 1 && (
-                  <Tooltip title="Remove this URL">
-                    <IconButton 
-                      onClick={() => removeUrlInput(entry.id)}
-                      color="error"
-                      size="small"
-                    >
-                      <RemoveIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <IconButton 
+                    onClick={() => removeUrlInput(entry.id)}
+                    color="error"
+                    size="small"
+                  >
+                    <RemoveIcon />
+                  </IconButton>
                 )}
               </Box>
 
@@ -271,9 +250,6 @@ function UrlShortener() {
                     onChange={(e) => updateUrl(entry.id, 'url', e.target.value)}
                     error={!!entry.error}
                     helperText={entry.error}
-                    InputProps={{
-                      startAdornment: <LinkIcon sx={{ mr: 1, color: 'action.active' }} />
-                    }}
                   />
                 </Grid>
                 
@@ -284,10 +260,6 @@ function UrlShortener() {
                     type="number"
                     value={entry.validity}
                     onChange={(e) => updateUrl(entry.id, 'validity', e.target.value)}
-                    InputProps={{
-                      startAdornment: <ScheduleIcon sx={{ mr: 1, color: 'action.active' }} />,
-                      inputProps: { min: 1 }
-                    }}
                     helperText="Default: 30 minutes"
                   />
                 </Grid>
@@ -299,16 +271,13 @@ function UrlShortener() {
                     placeholder="mycode123"
                     value={entry.shortcode}
                     onChange={(e) => updateUrl(entry.id, 'shortcode', e.target.value)}
-                    InputProps={{
-                      startAdornment: <CodeIcon sx={{ mr: 1, color: 'action.active' }} />
-                    }}
                     helperText="3-10 alphanumeric characters"
                   />
                 </Grid>
               </Grid>
 
               {entry.result && (
-                <Paper elevation={1} sx={{ p: 2, backgroundColor: 'success.light', color: 'success.contrastText' }}>
+                <Paper elevation={1} sx={{ p: 2, backgroundColor: 'success.light' }}>
                   <Typography variant="subtitle2" gutterBottom>
                     ✅ URL shortened successfully!
                   </Typography>
@@ -321,26 +290,19 @@ function UrlShortener() {
                       variant="body2" 
                       sx={{ 
                         fontFamily: 'monospace',
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        px: 1,
-                        py: 0.5,
-                        borderRadius: 1,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
                       }}
                       onClick={() => copyToClipboard(entry.result.shortLink)}
-                      title="Click to copy"
                     >
                       {entry.result.shortLink}
                     </Typography>
-                    <Tooltip title="Open in new tab">
-                      <IconButton 
-                        size="small" 
-                        onClick={() => window.open(entry.result.shortLink, '_blank')}
-                        sx={{ color: 'inherit' }}
-                      >
-                        <LaunchIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                    <IconButton 
+                      size="small" 
+                      onClick={() => window.open(entry.result.shortLink, '_blank')}
+                    >
+                      <LaunchIcon fontSize="small" />
+                    </IconButton>
                   </Box>
                   
                   <Typography variant="caption">
@@ -351,14 +313,13 @@ function UrlShortener() {
             </Box>
           ))}
 
-          <Box sx={{ mt: 3, display: 'flex', gap: 2, alignItems: 'center' }}>
+          <Box sx={{ mt: 3, display: 'flex', gap: 2 }}>
             <Button
               variant="contained"
               size="large"
               onClick={handleSubmit}
               disabled={loading}
-              startIcon={loading ? <CircularProgress size={20} /> : <LinkIcon />}
-              sx={{ minWidth: 160 }}
+              startIcon={loading ? <CircularProgress size={20} /> : null}
             >
               {loading ? 'Shortening...' : 'Shorten URLs'}
             </Button>
@@ -373,12 +334,6 @@ function UrlShortener() {
                 Add Another URL
               </Button>
             )}
-
-            <Chip 
-              label={`${urls.length}/5 URLs`} 
-              color={urls.length === 5 ? 'warning' : 'default'} 
-              variant="outlined"
-            />
           </Box>
         </CardContent>
       </Card>

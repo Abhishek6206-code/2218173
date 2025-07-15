@@ -1,7 +1,7 @@
 {
-  "name": "affordmed-url-shortener-frontend",
+  "name": "url-shortener-frontend",
   "version": "1.0.0",
-  "description": "AFFORDMED URL Shortener Frontend",
+  "description": "URL Shortener Frontend for AFFORDMED",
   "private": true,
   "dependencies": {
     "@mui/material": "^5.15.1",
@@ -16,27 +16,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
-  "browserslist": {
-    "production": [
-      ">0.2%",
-      "not dead",
-      "not op_mini all"
-    ],
-    "development": [
-      "last 1 chrome version",
-      "last 1 firefox version",
-      "last 1 safari version"
-    ]
+    "build": "react-scripts build"
   },
   "proxy": "http://localhost:3001"
 }
