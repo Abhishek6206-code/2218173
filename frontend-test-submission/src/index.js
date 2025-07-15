@@ -6,7 +6,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import App from './App';
 import { useLogger } from './utils/logger';
 
-// Create Material UI theme
 const theme = createTheme({
   palette: {
     primary: {
@@ -47,7 +46,6 @@ const theme = createTheme({
   },
 });
 
-// Component to initialize logging
 function AppWithLogging() {
   const logger = useLogger();
   
