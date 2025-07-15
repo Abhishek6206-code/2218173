@@ -1,0 +1,12 @@
+{
+  "name": "affordmed-logging-middleware",
+  "version": "1.0.0",
+  "description": "Custom logging middleware for AFFORDMED URL Shortener",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["logging", "middleware", "affordmed"],
+  "author": "AFFORDMED",
+  "license": "MIT"
+}
