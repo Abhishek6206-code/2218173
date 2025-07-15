@@ -1,89 +1,73 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
-const { v4: uuidv4 } = require('uuid'); // for generating unique IDs if needed
+const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
 const path = require('path');
-
-// Import the custom logging middleware we built
 const { createLogger } = require('../logging-middleware');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-console.log('Starting AFFORDMED URL Shortener Backend...'); // quick debug log
+console.log('Starting AFFORDMED URL Shortener Backend...');
 
-// set up logger
 const logger = createLogger({
   serviceName: 'URL-SHORTENER-BACKEND',
   environment: process.env.NODE_ENV || 'development', 
   logLevel: 'info'
 });
 
-// Security and CORS setup
-app.use(helmet()); // basic security headers
+app.use(helmet());
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'], // allow frontend
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true
 }));
-app.use(express.json({ limit: '10mb' })); // parse JSON bodies
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// plug in our logging middleware
 app.use(logger.expressMiddleware());
 
-// Storage - using Maps for now (TODO: switch to real DB later)
-const urlDatabase = new Map(); // stores main URL data
-const clickAnalytics = new Map(); // stores click tracking data
+const urlDatabase = new Map();
+const clickAnalytics = new Map();
 
 if (process.env.NODE_ENV === 'development') {
   console.log('Using in-memory storage for development');
 }
 
-// generates a random 6 character shortcode
 function generateShortCode() {
   const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let result = '';
-  // just loop 6 times and pick random chars
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
 }
 
-// check if URL is valid format
 function isValidUrl(urlString) {
   try {
     const urlObj = new URL(urlString);
     return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
   } catch (error) {
-    return false; // invalid URL
+    return false;
   }
 }
 
-// validate custom shortcode format
 function isValidShortCode(code) {
-  // 3-10 alphanumeric characters only
   return /^[a-zA-Z0-9]{3,10}$/.test(code);
 }
 
-// check if a URL has expired
 function isExpired(expiryDate) {
   return new Date() > new Date(expiryDate);
 }
 
-// run cleanup every minute to remove expired URLs
 cron.schedule('* * * * *', () => {
   let removed = 0;
-  // check all URLs for expiry
   for (const [code, data] of urlDatabase.entries()) {
     if (isExpired(data.expiry)) {
       urlDatabase.delete(code);
-      clickAnalytics.delete(code); // also remove analytics
+      clickAnalytics.delete(code);
       removed++;
     }
   }
-  // only log if we actually cleaned something
   if (removed > 0) {
     logger.info('Expired URL cleanup', { removedCount: removed });
     if (process.env.NODE_ENV === 'development') {
@@ -92,12 +76,10 @@ cron.schedule('* * * * *', () => {
   }
 });
 
-// API endpoint to create short URLs
 app.post('/shorturls', async (req, res) => {
   try {
     const { url, validity = 30, shortcode } = req.body;
     
-    // basic validation first
     if (!url) {
       logger.warn('Missing URL in request', { body: req.body });
       return res.status(400).json({
@@ -106,7 +88,6 @@ app.post('/shorturls', async (req, res) => {
       });
     }
 
-    // check URL format
     if (!isValidUrl(url)) {
       logger.warn('Invalid URL format provided', { url: url });
       return res.status(400).json({
@@ -115,7 +96,6 @@ app.post('/shorturls', async (req, res) => {
       });
     }
 
-    // validate validity period
     if (validity && (!Number.isInteger(validity) || validity < 1)) {
       logger.warn('Invalid validity period', { validity: validity });
       return res.status(400).json({
@@ -126,7 +106,6 @@ app.post('/shorturls', async (req, res) => {
 
     let shortCodeToUse;
 
-    // handle custom shortcode if provided
     if (shortcode) {
       if (!isValidShortCode(shortcode)) {
         logger.warn('Bad shortcode format', { shortcode: shortcode });
@@ -136,7 +115,6 @@ app.post('/shorturls', async (req, res) => {
         });
       }
 
-      // check if shortcode already taken
       if (urlDatabase.has(shortcode)) {
         logger.warn('Shortcode already exists', { shortcode: shortcode });
         return res.status(409).json({
@@ -147,17 +125,14 @@ app.post('/shorturls', async (req, res) => {
 
       shortCodeToUse = shortcode;
     } else {
-      // generate a unique random shortcode
       do {
         shortCodeToUse = generateShortCode();
-      } while (urlDatabase.has(shortCodeToUse)); // keep trying until unique
+      } while (urlDatabase.has(shortCodeToUse));
     }
 
-    // calculate when this URL expires
     const expiryTime = new Date();
     expiryTime.setMinutes(expiryTime.getMinutes() + validity);
 
-    // create the URL record
     const urlRecord = {
       originalUrl: url,
       shortCode: shortCodeToUse,
@@ -166,11 +141,9 @@ app.post('/shorturls', async (req, res) => {
       clicks: 0
     };
 
-    // save to our "database"
     urlDatabase.set(shortCodeToUse, urlRecord);
-    clickAnalytics.set(shortCodeToUse, []); // empty analytics array to start
+    clickAnalytics.set(shortCodeToUse, []);
 
-    // build the full short URL 
     const shortLink = `${req.protocol}://${req.get('host')}/${shortCodeToUse}`;
 
     logger.info('Created new short URL', {
@@ -180,7 +153,6 @@ app.post('/shorturls', async (req, res) => {
       expiresAt: expiryTime.toISOString()
     });
 
-    // send response back to client
     res.status(201).json({
       shortLink: shortLink,
       expiry: expiryTime.toISOString()
@@ -195,7 +167,6 @@ app.post('/shorturls', async (req, res) => {
   }
 });
 
-// 2. Retrieve Short URL Statistics
 app.get('/shorturls/:shortCode', async (req, res) => {
   try {
     const { shortCode } = req.params;
@@ -210,7 +181,6 @@ app.get('/shorturls/:shortCode', async (req, res) => {
 
     const urlData = urlDatabase.get(shortCode);
 
-    // Check if expired
     if (isExpired(urlData.expiry)) {
       logger.warn('Statistics request failed - URL expired', { shortCode, expiry: urlData.expiry });
       urlDatabase.delete(shortCode);
@@ -246,7 +216,6 @@ app.get('/shorturls/:shortCode', async (req, res) => {
   }
 });
 
-// 3. Redirect Short URL
 app.get('/:shortCode', async (req, res) => {
   try {
     const { shortCode } = req.params;
@@ -261,7 +230,6 @@ app.get('/:shortCode', async (req, res) => {
 
     const urlData = urlDatabase.get(shortCode);
 
-    // Check if expired
     if (isExpired(urlData.expiry)) {
       logger.warn('Redirect failed - URL expired', { shortCode, expiry: urlData.expiry });
       urlDatabase.delete(shortCode);
@@ -272,16 +240,14 @@ app.get('/:shortCode', async (req, res) => {
       });
     }
 
-    // Record click analytics
     const clickData = {
       timestamp: new Date().toISOString(),
       referrer: req.get('Referer') || null,
       userAgent: req.get('User-Agent') || null,
       ip: req.ip || req.connection.remoteAddress,
-      location: 'Unknown' // In production, you could use IP geolocation
+      location: 'Unknown'
     };
 
-    // Update click count and analytics
     urlData.clicks++;
     const analytics = clickAnalytics.get(shortCode) || [];
     analytics.push(clickData);
@@ -294,7 +260,6 @@ app.get('/:shortCode', async (req, res) => {
       referrer: clickData.referrer
     });
 
-    // Redirect to original URL
     res.redirect(302, urlData.originalUrl);
 
   } catch (error) {
@@ -306,7 +271,6 @@ app.get('/:shortCode', async (req, res) => {
   }
 });
 
-// 4. Get all URLs (for frontend to display)
 app.get('/api/urls', async (req, res) => {
   try {
     const allUrls = [];
@@ -337,7 +301,6 @@ app.get('/api/urls', async (req, res) => {
   }
 });
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   logger.info('Health check requested');
   res.json({
@@ -348,7 +311,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Error handling middleware
 app.use((error, req, res, next) => {
   logger.error('Unhandled error', { error: error.message, stack: error.stack });
   res.status(500).json({
@@ -357,7 +319,6 @@ app.use((error, req, res, next) => {
   });
 });
 
-// 404 handler
 app.use((req, res) => {
   logger.warn('Route not found', { method: req.method, url: req.url });
   res.status(404).json({
@@ -366,7 +327,6 @@ app.use((req, res) => {
   });
 });
 
-// Start server
 app.listen(PORT, () => {
   logger.info('Server started', {
     port: PORT,
