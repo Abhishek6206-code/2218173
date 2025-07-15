@@ -26,8 +26,6 @@ import {
 import { urlAPI, validateUrl, validateShortCode, validateValidity } from '../utils/api';
 import { useLogger } from '../utils/logger';
 
-// TODO: maybe add bulk export functionality later
-
 function UrlShortener() {
   const logger = useLogger();
   const [urls, setUrls] = useState([
@@ -36,7 +34,6 @@ function UrlShortener() {
   const [loading, setLoading] = useState(false);
   const [globalError, setGlobalError] = useState('');
 
-  // add another URL input field
   const addUrlInput = () => {
     if (urls.length >= 5) {
       console.log('Already at max URLs');
@@ -57,7 +54,6 @@ function UrlShortener() {
     logger.info('Added new URL input', { totalInputs: urls.length + 1 });
   };
 
-  // remove a URL input field
   const removeUrlInput = (id) => {
     if (urls.length <= 1) {
       console.log('Cannot remove last URL input');
@@ -69,7 +65,6 @@ function UrlShortener() {
     logger.info('Removed URL input', { removedId: id, remaining: filtered.length });
   };
 
-  // update URL form data
   const updateUrl = (id, field, value) => {
     const updated = urls.map(u => {
       if (u.id === id) {
@@ -80,32 +75,26 @@ function UrlShortener() {
     setUrls(updated);
   };
 
-  // check if a single URL entry is valid
   const validateUrlEntry = (entry) => {
-    // check required fields first
     if (!entry.url || !entry.url.trim()) {
       return 'URL is required';
     }
     
-    // validate URL format
     if (!validateUrl(entry.url)) {
       return 'Please enter a valid HTTP or HTTPS URL';
     }
     
-    // check validity period if provided
     if (entry.validity && !validateValidity(entry.validity)) {
       return 'Validity must be a positive integer (minutes)';
     }
     
-    // validate custom shortcode if provided
     if (entry.shortcode && entry.shortcode.trim() && !validateShortCode(entry.shortcode)) {
       return 'Shortcode must be 3-10 alphanumeric characters';
     }
     
-    return null; // no errors
+    return null;
   };
 
-  // Validate all URLs
   const validateAllUrls = () => {
     const validUrls = urls.filter(u => u.url.trim());
     
@@ -113,7 +102,6 @@ function UrlShortener() {
       return 'Please enter at least one URL to shorten';
     }
 
-    // Check for duplicate URLs
     const urlMap = new Map();
     for (const entry of validUrls) {
       if (urlMap.has(entry.url)) {
@@ -122,7 +110,6 @@ function UrlShortener() {
       urlMap.set(entry.url, true);
     }
 
-    // Check for duplicate custom shortcodes
     const shortcodes = validUrls
       .filter(u => u.shortcode && u.shortcode.trim())
       .map(u => u.shortcode.trim());
@@ -131,7 +118,6 @@ function UrlShortener() {
       return 'Duplicate shortcodes are not allowed';
     }
 
-    // Validate each URL entry
     for (const entry of validUrls) {
       const error = validateUrlEntry(entry);
       if (error) {
@@ -142,17 +128,14 @@ function UrlShortener() {
     return null;
   };
 
-  // handle the form submission
   const handleSubmit = async () => {
-    console.log('Starting URL shortening process...'); // debug log
+    console.log('Starting URL shortening process...');
     logger.info('Form submitted', { urlCount: urls.length });
     
-    // reset any previous errors
     setGlobalError('');
     const clearedUrls = urls.map(u => ({ ...u, error: '', result: null }));
     setUrls(clearedUrls);
 
-    // validate everything first
     const validationError = validateAllUrls();
     if (validationError) {
       setGlobalError(validationError);
@@ -163,20 +146,16 @@ function UrlShortener() {
     setLoading(true);
 
     try {
-      // only process URLs that have something entered
       const validUrls = urls.filter(u => u.url && u.url.trim());
       console.log(`Processing ${validUrls.length} URLs...`);
       
-      // create promises for all the API calls
       const apiPromises = validUrls.map(async (entry) => {
         try {
-          // prepare the data for the API
           const requestData = {
             url: entry.url.trim(),
             validity: parseInt(entry.validity) || 30
           };
           
-          // add shortcode if provided
           if (entry.shortcode && entry.shortcode.trim()) {
             requestData.shortcode = entry.shortcode.trim();
           }
@@ -197,10 +176,8 @@ function UrlShortener() {
         }
       });
 
-      // wait for all API calls to complete
       const results = await Promise.all(apiPromises);
       
-      // update the UI with the results
       const updatedUrls = urls.map(u => {
         const apiResult = results.find(r => r.id === u.id);
         if (apiResult) {
@@ -210,11 +187,10 @@ function UrlShortener() {
             return { ...u, error: apiResult.error, result: null };
           }
         }
-        return u; // no change for this URL
+        return u;
       });
       setUrls(updatedUrls);
 
-      // log the final results
       const successCount = results.filter(r => r.success).length;
       const failCount = results.filter(r => !r.success).length;
       console.log(`Completed: ${successCount} success, ${failCount} failed`);
@@ -235,7 +211,6 @@ function UrlShortener() {
     }
   };
 
-  // Copy to clipboard
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -332,7 +307,6 @@ function UrlShortener() {
                 </Grid>
               </Grid>
 
-              {/* Results */}
               {entry.result && (
                 <Paper elevation={1} sx={{ p: 2, backgroundColor: 'success.light', color: 'success.contrastText' }}>
                   <Typography variant="subtitle2" gutterBottom>
