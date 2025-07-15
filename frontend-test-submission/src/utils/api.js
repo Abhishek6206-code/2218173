@@ -1,18 +1,16 @@
 import axios from 'axios';
 import logger from './logger';
 
-// setup axios instance for API calls
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || 'http://localhost:3001',
-  timeout: 10000, // 10 second timeout
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json'
   }
 });
 
-console.log('API base URL:', api.defaults.baseURL); // debug info
+console.log('API base URL:', api.defaults.baseURL);
 
-// log all outgoing requests
 api.interceptors.request.use(
   (config) => {
     const hasData = config.data ? true : false;
@@ -29,7 +27,6 @@ api.interceptors.request.use(
   }
 );
 
-// log all responses
 api.interceptors.response.use(
   (response) => {
     logger.info('Got API response', {
@@ -41,7 +38,6 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    // extract error info
     const errorInfo = {
       status: error.response?.status || 'No status',
       url: error.config?.url || 'Unknown URL',
@@ -50,14 +46,12 @@ api.interceptors.response.use(
     };
     
     logger.error('API call failed', errorInfo);
-    console.error('API Error:', errorInfo); // also log to console for debugging
+    console.error('API Error:', errorInfo);
     return Promise.reject(error);
   }
 );
 
-// Main API functions
 export const urlAPI = {
-  // create a new short URL
   createShortUrl: async (data) => {
     try {
       logger.info('Creating short URL', { url: data.url });
@@ -75,11 +69,10 @@ export const urlAPI = {
         error: errorMsg,
         originalUrl: data.url
       });
-      throw err; // re-throw for caller to handle
+      throw err;
     }
   },
 
-  // get statistics for a short URL
   getUrlStats: async (code) => {
     try {
       logger.info('Getting URL stats', { shortCode: code });
@@ -100,7 +93,6 @@ export const urlAPI = {
     }
   },
 
-  // fetch all URLs from backend
   getAllUrls: async () => {
     try {
       logger.info('Fetching all URLs from backend');
@@ -108,7 +100,7 @@ export const urlAPI = {
       
       const urlCount = resp.data.length;
       logger.info('URLs retrieved', { count: urlCount });
-      console.log(`Got ${urlCount} URLs from server`); // debug
+      console.log(`Got ${urlCount} URLs from server`);
       
       return resp.data;
     } catch (err) {
@@ -118,7 +110,6 @@ export const urlAPI = {
     }
   },
 
-  // Health check
   healthCheck: async () => {
     try {
       const response = await api.get('/health');
@@ -136,7 +127,6 @@ export const urlAPI = {
   }
 };
 
-// Utility functions
 export const validateUrl = (url) => {
   try {
     const urlObj = new URL(url);
