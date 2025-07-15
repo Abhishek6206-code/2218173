@@ -1,150 +1,97 @@
-import React from 'react';
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import {
-  AppBar,
-  Toolbar, 
-  Typography,
-  Container,
-  Box,
-  Tabs,
-  Tab,
-  Paper
-} from '@mui/material';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import UrlShortener from './components/UrlShortener';
-import UrlStatistics from './components/UrlStatistics';
-import { useLogger } from './utils/logger';
+import React, { useState, useEffect } from 'react';
+import './App.css';
 
 function App() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const logger = useLogger();
+  const [url, setUrl] = useState('');
+  const [shortUrl, setShortUrl] = useState('');
+  const [urls, setUrls] = useState([]);
+  const [stats, setStats] = useState({});
 
-  const getCurrentTab = () => {
-    if (location.pathname === '/statistics') {
-      return 1;
+  useEffect(() => {
+    fetchUrls();
+  }, []);
+
+  const fetchUrls = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/list');
+      const data = await response.json();
+      setUrls(data);
+    } catch (error) {
+      console.error('Error:', error);
     }
-    return 0;
   };
 
-  const handleTabChange = (event, newValue) => {
-    const routes = ['/', '/statistics'];
-    const targetRoute = routes[newValue];
-    
-    logger.info('User navigating to new page', { 
-      from: location.pathname,
-      to: targetRoute,
-      tabIndex: newValue
-    });
-    
-    navigate(targetRoute);
+  const shortenUrl = async () => {
+    try {
+      const response = await fetch('http://localhost:3001/shorten', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+      const data = await response.json();
+      setShortUrl(data.shortUrl);
+      setUrl('');
+      fetchUrls();
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
-  React.useEffect(() => {
-    logger.info('Page view', { 
-      page: location.pathname,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent
-    });
-  }, [location.pathname, logger]);
+  const getStats = async (code) => {
+    try {
+      const response = await fetch(`http://localhost:3001/stats/${code}`);
+      const data = await response.json();
+      setStats({...stats, [code]: data});
+    } catch (error) {
+      console.error('Error:', error);
+    }
+  };
 
   return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static" elevation={0}>
-        <Toolbar>
-          <Typography 
-            variant="h6" 
-            component="div" 
-            sx={{ 
-              flexGrow: 1,
-              fontWeight: 'bold',
-              letterSpacing: '0.5px'
-            }}
-          >
-            AFFORDMED® URL Shortener
-          </Typography>
-          <Typography 
-            variant="body2" 
-            sx={{ 
-              fontStyle: 'italic',
-              opacity: 0.9
-            }}
-          >
-            Technology, Innovation & Affordability
-          </Typography>
-        </Toolbar>
-      </AppBar>
+    <div className="App">
+      <h1>URL Shortener</h1>
+      
+      <div className="shorten-form">
+        <input
+          type="text"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="Enter URL to shorten"
+        />
+        <button onClick={shortenUrl}>Shorten</button>
+      </div>
 
-      <Paper elevation={1} sx={{ borderRadius: 0 }}>
-        <Container maxWidth="lg">
-          <Tabs 
-            value={getCurrentTab()} 
-            onChange={handleTabChange}
-            indicatorColor="primary"
-            textColor="primary"
-            sx={{ 
-              minHeight: 48,
-              '& .MuiTab-root': {
-                minHeight: 48,
-                fontWeight: 500
-              }
-            }}
-          >
-            <Tab 
-              label="URL Shortener" 
-              component={RouterLink} 
-              to="/"
-              sx={{ textTransform: 'none' }}
-            />
-            <Tab 
-              label="URL Statistics" 
-              component={RouterLink} 
-              to="/statistics"
-              sx={{ textTransform: 'none' }}
-            />
-          </Tabs>
-        </Container>
-      </Paper>
+      {shortUrl && (
+        <div className="result">
+          <p>Short URL: <a href={shortUrl} target="_blank" rel="noopener noreferrer">{shortUrl}</a></p>
+        </div>
+      )}
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-        <Routes>
-          <Route path="/" element={<UrlShortener />} />
-          <Route path="/statistics" element={<UrlStatistics />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Container>
-
-      <Box
-        component="footer"
-        sx={{
-          mt: 'auto',
-          py: 3,
-          px: 2,
-          backgroundColor: (theme) => theme.palette.grey[100],
-          borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Container maxWidth="lg">
-          <Typography 
-            variant="body2" 
-            color="text.secondary" 
-            align="center"
-            sx={{ fontWeight: 500 }}
-          >
-            © 2025 AFFORDMED®. All rights reserved.
-          </Typography>
-          <Typography 
-            variant="caption" 
-            color="text.secondary" 
-            align="center" 
-            display="block"
-            sx={{ mt: 0.5 }}
-          >
-            Powered by React & Node.js with Custom Logging Middleware
-          </Typography>
-        </Container>
-      </Box>
-    </Box>
+      <div className="urls-list">
+        <h2>All URLs</h2>
+        {urls.map((item) => (
+          <div key={item.code} className="url-item">
+            <div>
+              <strong>Original:</strong> {item.url}
+            </div>
+            <div>
+              <strong>Short:</strong> <a href={`http://localhost:3001/${item.code}`} target="_blank" rel="noopener noreferrer">localhost:3001/{item.code}</a>
+            </div>
+            <div>
+              <strong>Clicks:</strong> {item.clicks}
+            </div>
+            <button onClick={() => getStats(item.code)}>Show Stats</button>
+            {stats[item.code] && (
+              <div className="stats">
+                <p>Created: {new Date(stats[item.code].created).toLocaleString()}</p>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
